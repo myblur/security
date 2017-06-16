@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:sec="http://www.springframework.org/schema/security"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security.xsd">
+
+    <import resource="spring-security-config.xml"/>
+
+    <sec:debug/>
+
+    <sec:http pattern="/resoruces/**" security="none"/>
+    <sec:http auto-config="false" access-decision-manager-ref="accessDecisionManager"
+              entry-point-ref="defaultLoginUrlAuthenticationEntryPoint">
+        <sec:intercept-url pattern="/manage/login*" access="IS_AUTHENTICATED_ANONYMOUSLY"/>
+        <sec:logout logout-success-url="/" logout-url="${security.logut.url}" invalidate-session="true"/>
+        <sec:anonymous enabled="true" granted-authority="${security.anonymous.granted.authority}"/>
+        <sec:session-management session-authentication-error-url="${security.session.authentication.error.url}"
+                                session-fixation-protection="newSession">
+            <sec:concurrency-control max-sessions="1" expired-url="${security.login.url}"
+                                     error-if-maximum-exceeded="true"/>
+        </sec:session-management>
+        <sec:custom-filter ref="filterSecurityInterceptor" before="FILTER_SECURITY_INTERCEPTOR"/>
+        <sec:access-denied-handler error-page="${security.login.access.denied}"/>
+    </sec:http>
+
+
+    <sec:authentication-manager id="authenticationManager">
+        <sec:authentication-provider ref="securityAuthenticationProvider"/>
+    </sec:authentication-manager>
+
+    <bean id="filterSecurityInterceptor"
+          class="org.springframework.security.web.access.intercept.FilterSecurityInterceptor">
+        <property name="rejectPublicInvocations" value="false"/>
+        <property name="authenticationManager" ref="authenticationManager"/>
+        <property name="accessDecisionManager" ref="accessDecisionManager"/>
+        <property name="securityMetadataSource" ref="securityMetadataSource"/>
+    </bean>
+
+    <bean id="accessDecisionManager" class="org.springframework.security.access.vote.AffirmativeBased">
+        <constructor-arg name="decisionVoters">
+            <list>
+                <bean class="org.springframework.security.access.vote.RoleVoter">
+                    <property name="rolePrefix" value="${security.rolePrefix}"/>
+                </bean>
+                <bean class="org.springframework.security.access.vote.AuthenticatedVoter"/>
+            </list>
+        </constructor-arg>
+    </bean>
+
+    <bean id="securityMetadataSource"
+          class="me.iblur.security.authentication.FilterInvocationSecurityMetadataSourceFactoryBean"/>
+
+
+</beans>
