@@ -4,6 +4,8 @@ import me.iblur.study.security.authentication.CaptchaAuthenticationFilter;
 import me.iblur.study.security.authentication.DefaultAuthenticationProvider;
 import me.iblur.study.security.authentication.DefaultUserDetailsService;
 import me.iblur.study.security.authentication.FilterInvocationSecurityMetadataSourceFactoryBean;
+import me.iblur.study.security.service.SecurityService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.access.AccessDecisionManager;
@@ -33,6 +35,13 @@ import java.util.Arrays;
 @EnableWebSecurity(debug = true)
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
+    private final SecurityService securityService;
+
+    @Autowired
+    public WebSecurityConfig(final SecurityService securityService) {
+        this.securityService = securityService;
+    }
+
     @Override
     public void configure(final HttpSecurity http) throws Exception {
         http.authorizeRequests()
@@ -47,8 +56,8 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .permitAll();
         http.addFilterBefore(captchaAuthenticationFilter(http.getSharedObject(AuthenticationManager.class)),
                 UsernamePasswordAuthenticationFilter.class);
-        //http.addFilterAt(filterSecurityInterceptor(http.getSharedObject(AuthenticationManager.class)),
-        //FilterSecurityInterceptor.class);
+        http.addFilterAt(filterSecurityInterceptor(http.getSharedObject(AuthenticationManager.class)),
+        FilterSecurityInterceptor.class);
     }
 
     @Override
@@ -79,7 +88,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Bean
     public UserDetailsService userDetailsService() {
-        return new DefaultUserDetailsService();
+        return new DefaultUserDetailsService(securityService);
     }
 
     @Bean

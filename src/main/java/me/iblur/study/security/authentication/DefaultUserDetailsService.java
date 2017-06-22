@@ -1,5 +1,7 @@
 package me.iblur.study.security.authentication;
 
+import me.iblur.study.security.service.SecurityService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -12,13 +14,23 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
  */
 public class DefaultUserDetailsService implements UserDetailsService {
 
+    private final SecurityService securityService;
+
+    @Autowired
+    public DefaultUserDetailsService(final SecurityService securityService) {
+        this.securityService = securityService;
+    }
+
     @Override
     public UserDetails loadUserByUsername(final String username) throws UsernameNotFoundException {
+        final me.iblur.study.security.model.User user = securityService.loadUserByUsername(username);
         final User.UserBuilder userBuilder = User.withUsername(username)
-                .password("$2a$10$AgOCOnU8vv0qsmpnO0fYNOqe1IOOXgK88E3ENsKsJUFXWmCVg8hP6");
-        userBuilder.accountExpired(false);
-        userBuilder.accountLocked(false);
-        userBuilder.authorities(new SimpleGrantedAuthority("USER"));
+                .password("");
+        userBuilder.disabled(!user.getEnabled());
+        userBuilder.accountExpired(user.getExpired());
+        userBuilder.accountLocked(user.getLocked());
+        userBuilder.authorities(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN"));
         return userBuilder.build();
     }
+
 }
