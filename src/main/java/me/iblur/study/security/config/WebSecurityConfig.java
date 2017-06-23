@@ -2,9 +2,9 @@ package me.iblur.study.security.config;
 
 import me.iblur.study.security.authentication.CaptchaAuthenticationFilter;
 import me.iblur.study.security.authentication.DefaultAuthenticationProvider;
+import me.iblur.study.security.authentication.DefaultFilterInvocationSecurityMetadataSource;
 import me.iblur.study.security.authentication.DefaultUserDetailsService;
-import me.iblur.study.security.authentication.FilterInvocationSecurityMetadataSourceFactoryBean;
-import me.iblur.study.security.service.SecurityService;
+import me.iblur.study.security.service.SecurityServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,8 +12,10 @@ import org.springframework.security.access.AccessDecisionManager;
 import org.springframework.security.access.vote.AffirmativeBased;
 import org.springframework.security.access.vote.AuthenticatedVoter;
 import org.springframework.security.access.vote.RoleVoter;
+import org.springframework.security.authentication.AuthenticationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.DefaultAuthenticationEventPublisher;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -35,17 +37,20 @@ import java.util.Arrays;
 @EnableWebSecurity(debug = true)
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
-    private final SecurityService securityService;
+    private final SecurityServiceImpl securityService;
 
     @Autowired
-    public WebSecurityConfig(final SecurityService securityService) {
+    public WebSecurityConfig(final SecurityServiceImpl securityService) {
         this.securityService = securityService;
     }
 
     @Override
     public void configure(final HttpSecurity http) throws Exception {
-        http.authorizeRequests()
-                .antMatchers("/manage**").authenticated()
+        http.addFilterBefore(captchaAuthenticationFilter(http.getSharedObject(AuthenticationManager.class)),
+                UsernamePasswordAuthenticationFilter.class).addFilterAt(filterSecurityInterceptor(),
+                FilterSecurityInterceptor.class)
+                .authorizeRequests()
+                .antMatchers("/manage**", "/manage/**").authenticated()
                 .antMatchers("/**").permitAll()
                 .and()
                 .formLogin()
@@ -54,15 +59,12 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .and()
                 .logout()
                 .permitAll();
-        http.addFilterBefore(captchaAuthenticationFilter(http.getSharedObject(AuthenticationManager.class)),
-                UsernamePasswordAuthenticationFilter.class);
-        http.addFilterAt(filterSecurityInterceptor(http.getSharedObject(AuthenticationManager.class)),
-        FilterSecurityInterceptor.class);
     }
 
     @Override
     protected void configure(final AuthenticationManagerBuilder auth) throws Exception {
-        auth.authenticationProvider(authenticationProvider());
+        auth.authenticationProvider(authenticationProvider()).authenticationEventPublisher
+                (authenticationEventPublisher());
     }
 
     @Bean
@@ -92,12 +94,12 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
-    public FilterSecurityInterceptor filterSecurityInterceptor(final AuthenticationManager authenticationManager) throws
-            Exception {
+    public FilterSecurityInterceptor filterSecurityInterceptor() {
         final FilterSecurityInterceptor filterSecurityInterceptor = new FilterSecurityInterceptor();
         filterSecurityInterceptor.setRejectPublicInvocations(false);
         filterSecurityInterceptor.setAccessDecisionManager(accessDecisionManager());
         filterSecurityInterceptor.setSecurityMetadataSource(securityMetadataSource());
+        filterSecurityInterceptor.setPublishAuthorizationSuccess(true);
         return filterSecurityInterceptor;
     }
 
@@ -110,8 +112,16 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
-    public FilterInvocationSecurityMetadataSource securityMetadataSource() throws Exception {
-        return new FilterInvocationSecurityMetadataSourceFactoryBean().getObject();
+    public FilterInvocationSecurityMetadataSource securityMetadataSource() {
+        final DefaultFilterInvocationSecurityMetadataSource securityMetadataSource = new
+                DefaultFilterInvocationSecurityMetadataSource();
+        securityMetadataSource.setSecurityService(securityService);
+        return securityMetadataSource;
+    }
+
+    @Bean
+    public AuthenticationEventPublisher authenticationEventPublisher() {
+        return new DefaultAuthenticationEventPublisher();
     }
 
 }
