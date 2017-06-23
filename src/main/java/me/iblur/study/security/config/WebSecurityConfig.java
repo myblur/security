@@ -1,9 +1,6 @@
 package me.iblur.study.security.config;
 
-import me.iblur.study.security.authentication.CaptchaAuthenticationFilter;
-import me.iblur.study.security.authentication.DefaultAuthenticationProvider;
-import me.iblur.study.security.authentication.DefaultFilterInvocationSecurityMetadataSource;
-import me.iblur.study.security.authentication.DefaultUserDetailsService;
+import me.iblur.study.security.authentication.*;
 import me.iblur.study.security.service.SecurityServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -20,12 +17,19 @@ import org.springframework.security.config.annotation.authentication.builders.Au
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.access.intercept.FilterInvocationSecurityMetadataSource;
 import org.springframework.security.web.access.intercept.FilterSecurityInterceptor;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.RememberMeServices;
+import org.springframework.security.web.authentication.rememberme.InMemoryTokenRepositoryImpl;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
 
 import java.util.Arrays;
 
@@ -46,10 +50,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     public void configure(final HttpSecurity http) throws Exception {
-        http.addFilterBefore(captchaAuthenticationFilter(http.getSharedObject(AuthenticationManager.class)),
-                UsernamePasswordAuthenticationFilter.class).addFilterAt(filterSecurityInterceptor(),
-                FilterSecurityInterceptor.class)
-                .authorizeRequests()
+        http.authorizeRequests()
                 .antMatchers("/manage**", "/manage/**").authenticated()
                 .antMatchers("/**").permitAll()
                 .and()
@@ -57,8 +58,46 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .loginPage("/login")
                 .permitAll()
                 .and()
-                .logout()
+                .logout().logoutUrl("/logout").logoutSuccessUrl("/login")
                 .permitAll();
+        http.sessionManagement()
+                .sessionCreationPolicy
+                        (SessionCreationPolicy.IF_REQUIRED).sessionFixation().migrateSession()
+                .maximumSessions(1)
+                .maxSessionsPreventsLogin(false).expiredUrl("/expire").sessionRegistry(sessionRegistry());
+        http.rememberMe().rememberMeServices(rememberMeServices());
+        //http.addFilterBefore(captchaAuthenticationFilter(http.getSharedObject(AuthenticationManager.class)),
+        //        UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(
+                roleAuthenticationFilterSecurityInterceptor(http.getSharedObject(AuthenticationManager.class)),
+                FilterSecurityInterceptor.class);
+    }
+
+
+    @Bean
+    public RememberMeServices rememberMeServices() {
+        final PersistentTokenBasedRememberMeServices rememberMeServices = new PersistentTokenBasedRememberMeServices(
+                "pwm_token",
+                userDetailsService(), persistentTokenRepository());
+        rememberMeServices.setTokenValiditySeconds(30 * 24 * 3600);
+        rememberMeServices.setUseSecureCookie(true);
+        rememberMeServices.setAlwaysRemember(true);
+        return rememberMeServices;
+    }
+
+    @Bean
+    public PersistentTokenRepository persistentTokenRepository() {
+        return new InMemoryTokenRepositoryImpl();
+    }
+
+    @Bean
+    public SessionRegistry sessionRegistry() {
+        return new SessionRegistryImpl();
+    }
+
+    @Bean
+    public HttpSessionEventPublisher httpSessionEventPublisher() {
+        return new HttpSessionEventPublisher();
     }
 
     @Override
@@ -94,13 +133,16 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
-    public FilterSecurityInterceptor filterSecurityInterceptor() {
-        final FilterSecurityInterceptor filterSecurityInterceptor = new FilterSecurityInterceptor();
-        filterSecurityInterceptor.setRejectPublicInvocations(false);
-        filterSecurityInterceptor.setAccessDecisionManager(accessDecisionManager());
-        filterSecurityInterceptor.setSecurityMetadataSource(securityMetadataSource());
-        filterSecurityInterceptor.setPublishAuthorizationSuccess(true);
-        return filterSecurityInterceptor;
+    public RoleAuthenticationFilterSecurityInterceptor roleAuthenticationFilterSecurityInterceptor(
+            final AuthenticationManager authenticationManager) {
+        final RoleAuthenticationFilterSecurityInterceptor roleAuthenticationFilterSecurityInterceptor = new
+                RoleAuthenticationFilterSecurityInterceptor();
+        roleAuthenticationFilterSecurityInterceptor.setRejectPublicInvocations(false);
+        roleAuthenticationFilterSecurityInterceptor.setAccessDecisionManager(accessDecisionManager());
+        roleAuthenticationFilterSecurityInterceptor.setSecurityMetadataSource(securityMetadataSource());
+        roleAuthenticationFilterSecurityInterceptor.setPublishAuthorizationSuccess(true);
+        roleAuthenticationFilterSecurityInterceptor.setAuthenticationManager(authenticationManager);
+        return roleAuthenticationFilterSecurityInterceptor;
     }
 
     @Bean
