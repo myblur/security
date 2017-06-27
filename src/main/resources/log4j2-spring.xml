@@ -6,7 +6,7 @@
         </Console>
     </Appenders>
     <Loggers>
-        <Logger name="me.iblur.study.security" level="trace" additivity="false">
+        <Logger name="org.springframework.security" level="debug" additivity="false">
             <AppenderRef ref="Console"/>
         </Logger>
         <Root level="info">

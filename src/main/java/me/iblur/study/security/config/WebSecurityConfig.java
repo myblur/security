@@ -9,15 +9,14 @@ import org.springframework.security.access.AccessDecisionManager;
 import org.springframework.security.access.vote.AffirmativeBased;
 import org.springframework.security.access.vote.AuthenticatedVoter;
 import org.springframework.security.access.vote.RoleVoter;
-import org.springframework.security.authentication.AuthenticationEventPublisher;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.authentication.DefaultAuthenticationEventPublisher;
+import org.springframework.security.authentication.*;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
+import org.springframework.security.core.authority.mapping.SimpleAuthorityMapper;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -29,6 +28,8 @@ import org.springframework.security.web.authentication.RememberMeServices;
 import org.springframework.security.web.authentication.rememberme.InMemoryTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenBasedRememberMeServices;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 
 import java.util.Arrays;
@@ -65,7 +66,9 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                         (SessionCreationPolicy.IF_REQUIRED).sessionFixation().migrateSession()
                 .maximumSessions(1)
                 .maxSessionsPreventsLogin(false).expiredUrl("/expire").sessionRegistry(sessionRegistry());
-        http.rememberMe().rememberMeServices(rememberMeServices());
+        http.csrf().disable();
+        http.rememberMe().alwaysRemember(true).tokenValiditySeconds(7 * 24 * 60 * 60).rememberMeCookieName("pwid")
+                .tokenRepository(new InMemoryTokenRepositoryImpl());
         //http.addFilterBefore(captchaAuthenticationFilter(http.getSharedObject(AuthenticationManager.class)),
         //        UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(
@@ -73,6 +76,10 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 FilterSecurityInterceptor.class);
     }
 
+    @Bean
+    public CsrfTokenRepository csrfTokenRepository() {
+        return new HttpSessionCsrfTokenRepository();
+    }
 
     @Bean
     public RememberMeServices rememberMeServices() {
@@ -82,7 +89,15 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         rememberMeServices.setTokenValiditySeconds(30 * 24 * 3600);
         rememberMeServices.setUseSecureCookie(true);
         rememberMeServices.setAlwaysRemember(true);
+        rememberMeServices.setAuthoritiesMapper(grantedAuthoritiesMapper());
+        rememberMeServices.setCookieDomain("localhost");
+        rememberMeServices.setCookieName("r_t");
         return rememberMeServices;
+    }
+
+    @Bean
+    public GrantedAuthoritiesMapper grantedAuthoritiesMapper() {
+        return new SimpleAuthorityMapper();
     }
 
     @Bean
@@ -112,7 +127,6 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
 
-    @Bean
     public CaptchaAuthenticationFilter captchaAuthenticationFilter(final AuthenticationManager authenticationManager) {
         final CaptchaAuthenticationFilter captchaAuthenticationFilter = new CaptchaAuthenticationFilter();
         captchaAuthenticationFilter.setAuthenticationManager(authenticationManager);
@@ -123,6 +137,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     public AuthenticationProvider authenticationProvider() {
         final DefaultAuthenticationProvider authenticationProvider = new DefaultAuthenticationProvider();
         authenticationProvider.setUserDetailsService(userDetailsService());
+        authenticationProvider.setAuthoritiesMapper(grantedAuthoritiesMapper());
         return authenticationProvider;
     }
 

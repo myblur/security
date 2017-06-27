@@ -39,7 +39,7 @@ public class SecurityServiceImpl implements SecurityService {
         return User.withUsername(username).password(authUser.getPassword()).disabled(!authUser.getEnabled())
                 .accountLocked(authUser.getLocked()).accountExpired(authUser.getExpired())
                 .authorities(authUser.getRoles().<GrantedAuthority>stream().map(role -> new SimpleGrantedAuthority
-                        ("ROLE_" + role.getName())).collect(toList())).build();
+                        (role.getName())).collect(toList())).build();
     }
 
     @Override
